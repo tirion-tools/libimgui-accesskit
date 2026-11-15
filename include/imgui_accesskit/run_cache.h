@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <list>
 #include <string>
 #include <unordered_map>
@@ -26,7 +27,7 @@ enum class Align : uint8_t { kStart, kEnd };
 enum class Dir : uint8_t { kAuto, kLtr, kRtl };
 
 struct RunStyle {
-  std::string family;    // Pango family list, e.g. "Noto Sans"
+  std::string family;    // Pango family list; empty: "Noto Sans" ("Noto Sans Mono" when monospace)
   float size = 14;       // logical px
   int weight = 400;      // 400 regular, 600 semibold
   bool monospace = false;
@@ -64,9 +65,27 @@ struct TextBox {
   float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
 };
 
+// The default texture backend: OpenGL, with a context current on the calling thread.
+// Uploads an A8 buffer (rows of `stride` bytes) into a GL_R8 texture with the alpha swizzle; 0 on failure.
+// `reuse` (non-zero) is re-specified in place and returned.
+unsigned upload_alpha_texture(const unsigned char* data, int width, int height, int stride, unsigned reuse = 0);
+// Uploads tightly packed, un-premultiplied RGBA8 pixels into a GL_RGBA8 texture; 0 on failure.
+unsigned upload_rgba_texture(const unsigned char* data, int width, int height);
+void delete_texture(unsigned texture);
+
+// Where RunCache and LineEdit put their rasters. Handles are drawn as ImTextureID; 0 = no texture.
+// The defaults are the OpenGL functions above; another renderer (or a headless test) supplies its own,
+// with the same contracts. destroy is never called with 0.
+struct TextureOps {
+  std::function<unsigned(const unsigned char* data, int width, int height, int stride, unsigned reuse)> upload_alpha =
+      upload_alpha_texture;
+  std::function<unsigned(const unsigned char* data, int width, int height)> upload_rgba = upload_rgba_texture;
+  std::function<void(unsigned texture)> destroy = delete_texture;
+};
+
 class RunCache {
  public:
-  RunCache();
+  explicit RunCache(TextureOps textures = {});
   ~RunCache();
   RunCache(const RunCache&) = delete;
   RunCache& operator=(const RunCache&) = delete;
@@ -111,6 +130,10 @@ class RunCache {
   // Shared Pango state for the line editor; a layout configured for the style (caller unrefs).
   PangoContext* context() const { return context_; }
   PangoLayout* make_layout(const std::string& text, const RunStyle& style);
+  const TextureOps& textures() const { return textures_; }
+  void release_texture(unsigned texture) const {
+    if (texture != 0) textures_.destroy(texture);
+  }
 
   size_t byte_budget = size_t{24} << 20;  // A8 texture bytes kept (software GL renderers keep them in RAM)
 
@@ -129,6 +152,7 @@ class RunCache {
   TextRun rasterize(const std::string& text, const RunStyle& style);
   const TextRun& insert(std::string key, TextRun run);
   void touch(Entry& e);
+  TextureOps textures_;
   PangoFontMap* fontmap_ = nullptr;
   PangoContext* context_ = nullptr;
   std::unordered_map<std::string, Entry> map_;
@@ -142,9 +166,5 @@ class RunCache {
   double budget_ms_ = 2, spent_ms_ = 0;
   int cold_ = 0, deferred_ = 0;
 };
-
-// Uploads an A8 buffer (rows of `stride` bytes) into a GL_R8 texture with the alpha swizzle; 0 on failure.
-unsigned upload_alpha_texture(const unsigned char* data, int width, int height, int stride, unsigned reuse = 0);
-void delete_texture(unsigned texture);
 
 }  // namespace imgui_accesskit::text

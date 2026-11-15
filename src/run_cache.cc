@@ -88,6 +88,8 @@ bool may_need_color(const std::string& text) {
   return false;
 }
 
+}  // namespace
+
 unsigned upload_rgba_texture(const unsigned char* data, int width, int height) {
   GLuint tex = 0;
   glGenTextures(1, &tex);
@@ -101,8 +103,6 @@ unsigned upload_rgba_texture(const unsigned char* data, int width, int height) {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
   return tex;
 }
-
-}  // namespace
 
 unsigned upload_alpha_texture(const unsigned char* data, int width, int height, int stride, unsigned reuse) {
   GLuint tex = reuse;
@@ -128,8 +128,10 @@ void delete_texture(unsigned texture) {
   glDeleteTextures(1, &t);
 }
 
-RunCache::RunCache()
-    : fontmap_(pango_cairo_font_map_new()), context_(pango_font_map_create_context(fontmap_)) {
+RunCache::RunCache(TextureOps textures)
+    : textures_(std::move(textures)),
+      fontmap_(pango_cairo_font_map_new()),
+      context_(pango_font_map_create_context(fontmap_)) {
   cairo_font_options_t* options = cairo_font_options_create();
   cairo_font_options_set_antialias(options, CAIRO_ANTIALIAS_GRAY);  // no subpixel AA in textures
   cairo_font_options_set_hint_style(options, CAIRO_HINT_STYLE_SLIGHT);
@@ -264,8 +266,8 @@ TextRun RunCache::rasterize(const std::string& text, const RunStyle& style) {
     }
     cairo_surface_destroy(argb);
     g_object_unref(layout);
-    run.texture = upload_alpha_texture(mask.data(), run.px_w, run.px_h, run.px_w);
-    if (any_color) run.color_texture = upload_rgba_texture(rgba.data(), run.px_w, run.px_h);
+    run.texture = textures_.upload_alpha(mask.data(), run.px_w, run.px_h, run.px_w, 0);
+    if (any_color) run.color_texture = textures_.upload_rgba(rgba.data(), run.px_w, run.px_h);
     return run;
   }
   cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_A8, run.px_w, run.px_h);
@@ -276,8 +278,8 @@ TextRun RunCache::rasterize(const std::string& text, const RunStyle& style) {
   cairo_destroy(cr);
   cairo_surface_flush(surface);
   g_object_unref(layout);
-  run.texture = upload_alpha_texture(cairo_image_surface_get_data(surface), run.px_w, run.px_h,
-                                     cairo_image_surface_get_stride(surface));
+  run.texture = textures_.upload_alpha(cairo_image_surface_get_data(surface), run.px_w, run.px_h,
+                                       cairo_image_surface_get_stride(surface), 0);
   cairo_surface_destroy(surface);
   return run;
 }
@@ -338,8 +340,8 @@ void RunCache::new_frame(double cold_budget_ms) {
     auto it = map_.find(lru_.back());
     if (it == map_.end() || it->second.frame + 1 >= frame_) break;
     bytes_ -= it->second.run.bytes();
-    delete_texture(it->second.run.texture);
-    delete_texture(it->second.run.color_texture);
+    release_texture(it->second.run.texture);
+    release_texture(it->second.run.color_texture);
     map_.erase(it);
     lru_.pop_back();
   }
@@ -469,8 +471,8 @@ void RunCache::clear() {
   hits_lru_.clear();
   widths_.clear();
   for (auto& [key, e] : map_) {
-    delete_texture(e.run.texture);
-    delete_texture(e.run.color_texture);
+    release_texture(e.run.texture);
+    release_texture(e.run.color_texture);
   }
   map_.clear();
   lru_.clear();

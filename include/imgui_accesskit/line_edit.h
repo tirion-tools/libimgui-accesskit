@@ -36,7 +36,7 @@ class LineEdit {
   std::string selected_text() const;
   void set_focused(bool on) { focused_ = on; }
   bool focused() const { return focused_; }
-  void set_font(const std::string& family, float size_px);
+  void set_font(const std::string& family, float size_px);  // default "Noto Sans", 14 logical px
   // Passphrase field: every character is drawn as a bullet of the same UTF-8 length (so Pango's indices stay the
   // model's), IME composition is not shown, and copy/cut do nothing. set_text("") wipes the old text.
   void set_masked(bool on) {

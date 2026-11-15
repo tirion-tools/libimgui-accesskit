@@ -26,7 +26,7 @@ LineEdit::LineEdit(RunCache& cache, std::string placeholder)
 }
 
 LineEdit::~LineEdit() {
-  delete_texture(texture_);
+  cache_.release_texture(texture_);
   if (layout_) g_object_unref(layout_);
   g_object_unref(context_);
 }
@@ -95,8 +95,8 @@ void LineEdit::ensure_layout(float scale) {
   pango_cairo_show_layout(cr, layout_);
   cairo_destroy(cr);
   cairo_surface_flush(surface);
-  texture_ = upload_alpha_texture(cairo_image_surface_get_data(surface), w, h, cairo_image_surface_get_stride(surface),
-                                  texture_);
+  texture_ = cache_.textures().upload_alpha(cairo_image_surface_get_data(surface), w, h,
+                                            cairo_image_surface_get_stride(surface), texture_);
   cairo_surface_destroy(surface);
   tex_w_ = w;
   tex_h_ = h;
