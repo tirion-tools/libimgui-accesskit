@@ -1,0 +1,42 @@
+# Debian packages whose shared libraries the tests may load (tools/licences.sh), with the licence of
+# the library itself (a package's copyright file also covers its build tools and tests). Allowed:
+# permissive licences, LGPL (dynamic linking), and the GCC runtime under its library exception.
+# A new dependency is added here only after its licence has been checked.
+libatomic1           GPL-3+ with the GCC Runtime Library Exception
+libblkid1            LGPL-2.1+
+libbrotli1           MIT
+libbz2-1.0           bzip2 (BSD-style)
+libc6                LGPL-2.1+
+libcairo2            LGPL-2.1 or MPL-1.1
+libdatrie1           LGPL-2.1+
+libexpat1            MIT
+libffi8              MIT
+libfontconfig1       MIT-style (fontconfig)
+libfreetype6         FTL or GPL-2+ (used under the FTL)
+libfribidi0          LGPL-2.1+
+libgcc-s1            GPL-3+ with the GCC Runtime Library Exception
+libgl1               MIT (libglvnd)
+libglib2.0-0t64      LGPL-2.1+
+libglvnd0            MIT (libglvnd)
+libglx0              MIT (libglvnd)
+libgraphite2-3       LGPL-2.1+ or MPL-1.1 or GPL-2+
+libharfbuzz0b        MIT
+libmount1            LGPL-2.1+
+libpango-1.0-0       LGPL-2+
+libpangocairo-1.0-0  LGPL-2+
+libpangoft2-1.0-0    LGPL-2+
+libpcre2-8-0         BSD-3-clause with the PCRE2 binary exception
+libpixman-1-0        MIT
+libpng16-16t64       libpng (zlib-style)
+libselinux1          public domain
+libstdc++6           GPL-3+ with the GCC Runtime Library Exception
+libthai0             LGPL-2.1+
+libx11-6             MIT/X11
+libxau6              MIT/X11
+libxcb-render0       MIT/X11
+libxcb-shm0          MIT/X11
+libxcb1              MIT/X11
+libxdmcp6            MIT/X11
+libxext6             MIT/X11
+libxrender1          MIT/X11
+zlib1g               Zlib

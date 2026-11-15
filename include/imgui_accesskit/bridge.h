@@ -67,6 +67,8 @@ class Bridge {
   static constexpr int kClick = 1, kFocus = 2;
   // Creates the AccessKit Unix adapter (it activates when an AT asks the registry). false if the
   // adapter could not be created; the application keeps running without accessibility then.
+  // `window` is reserved for platform adapters that attach to a native window; the Unix adapter
+  // does not use it. `title` labels the root node.
   bool start(SDL_Window* window, const std::string& title);
   void stop();
   ~Bridge() { stop(); }
