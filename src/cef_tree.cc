@@ -1,12 +1,13 @@
 #include "imgui_accesskit/cef_tree.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <unordered_set>
 #include <utility>
 
-namespace imgui_accesskit {
+namespace imgui_accesskit::cef {
 namespace {
 
 // ---- bounded JSON (RFC 8259 subset CefWriteJSON emits; strict, no extensions)
@@ -454,4 +455,4 @@ std::vector<CefExport> CefTreeMirror::export_tree() const {
   return out;
 }
 
-}  // namespace imgui_accesskit
+}  // namespace imgui_accesskit::cef

@@ -8,9 +8,9 @@
 
 namespace {
 
-using imgui_accesskit::CefKind;
-using imgui_accesskit::CefTreeLimits;
-using imgui_accesskit::CefTreeMirror;
+using imgui_accesskit::cef::CefKind;
+using imgui_accesskit::cef::CefTreeLimits;
+using imgui_accesskit::cef::CefTreeMirror;
 
 const char* kDoc = R"J({"updates":[{"has_tree_data":true,"tree_data":{"focus_id":1},"root_id":1,"nodes":[
  {"id":1,"role":"rootWebArea","child_ids":[2,3],"location":{"x":0,"y":0,"width":800,"height":600},

@@ -11,7 +11,7 @@
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   if (size == 0) return 0;
-  imgui_accesskit::CefTreeMirror m;
+  imgui_accesskit::cef::CefTreeMirror m;
   m.reset(1);
   const std::string_view in(reinterpret_cast<const char*>(data) + 1, size - 1);
   // Apply twice (tree then the same bytes as the requested kind) to exercise incremental updates.
