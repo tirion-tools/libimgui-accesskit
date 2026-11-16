@@ -2,6 +2,7 @@
 // the AccessKit tree built from a published frame.
 #include "imgui_accesskit/bridge.h"
 
+#include <cstdlib>
 #include <set>
 #include <string>
 

@@ -11,6 +11,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -41,6 +42,7 @@ struct Node {
   std::string key;  // stable widget key (tests, logs)
   std::string label, description, value;
   std::string url;  // kLink (http/https/mailto, validated by the CEF mirror)
+  std::string language;  // BCP 47 tag (AccessKit language); the root carries the UI language
   float x0 = 0, y0 = 0, x1 = 0, y1 = 0;  // physical px, window relative
   int selected = -1, expanded = -1, toggled = -1, checked = -1;  // -1 = not applicable
   int live = 0;        // 0 off, 1 polite, 2 assertive
@@ -72,6 +74,13 @@ class Bridge {
   bool start(SDL_Window* window, const std::string& title);
   void stop();
   ~Bridge() { stop(); }
+  // The UI language on the root node (WCAG 3.1.1), a BCP 47 tag such as "en-US"; empty = none.
+  // Defaults to locale_language().
+  void set_language(std::string tag) { language_ = std::move(tag); }
+  const std::string& language() const { return language_; }
+  // The process locale as a BCP 47 tag: LC_ALL, else LC_MESSAGES, else LANG ("de_DE.UTF-8@euro"
+  // → "de-DE"); "C", "POSIX" or unset → "en".
+  static std::string locale_language();
   Bridge() = default;
   Bridge(const Bridge&) = delete;  // owns the adapter; AccessKit holds `this`
   Bridge& operator=(const Bridge&) = delete;
@@ -111,6 +120,7 @@ class Bridge {
  private:
   SDL_Window* window_ = nullptr;
   std::string title_;
+  std::string language_ = locale_language();
   accesskit_unix_adapter* adapter_ = nullptr;
   Uint32 event_type_ = 0;
   float scale_ = 1;

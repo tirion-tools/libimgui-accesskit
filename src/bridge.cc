@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -96,6 +98,25 @@ void deactivation_cb(void* /*user*/) {}
 
 }  // namespace
 
+std::string Bridge::locale_language() {
+  const char* v = nullptr;
+  for (const char* name : {"LC_ALL", "LC_MESSAGES", "LANG"}) {
+    v = std::getenv(name);
+    if (v != nullptr && *v != '\0') break;
+  }
+  std::string s = v != nullptr ? v : "";
+  s = s.substr(0, s.find_first_of(".@"));  // drop the codeset and the modifier
+  if (s.empty() || s == "C" || s == "POSIX") return "en";
+  std::string out;
+  for (char ch : s) {
+    const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9');
+    if (ch == '_' || ch == '-') out += '-';
+    else if (ok) out += ch;
+    else return "en";  // not a locale name
+  }
+  return out.empty() || out.front() == '-' ? "en" : out;
+}
+
 bool Bridge::start(SDL_Window* window, const std::string& title) {
   window_ = window;
   title_ = title;
@@ -123,6 +144,7 @@ void Bridge::begin_frame(float scale, float width, float height) {
   root.role = Role::kWindow;
   root.key = "window";
   root.label = title_;
+  root.language = language_;
   // The root carries the window bounds (physical px); Wayland gives no global position.
   root.x1 = width * scale;
   root.y1 = height * scale;
@@ -236,6 +258,7 @@ accesskit_tree_update* Bridge::build_full_tree() {
   if (published_.empty()) {
     accesskit_node* root = accesskit_node_new(ACCESSKIT_ROLE_WINDOW);
     accesskit_node_set_label(root, title_.c_str());
+    if (!language_.empty()) accesskit_node_set_language(root, language_.c_str());
     accesskit_tree_update_push_node(update, kRootId, root);
     return update;
   }
@@ -244,6 +267,7 @@ accesskit_tree_update* Bridge::build_full_tree() {
     if (!n.label.empty()) accesskit_node_set_label(node, n.label.c_str());
     if (!n.description.empty()) accesskit_node_set_description(node, n.description.c_str());
     if (!n.url.empty()) accesskit_node_set_url(node, n.url.c_str());
+    if (!n.language.empty()) accesskit_node_set_language(node, n.language.c_str());
     // AccessKit unwraps a TextRun's value (a panic on its thread otherwise), so an empty run keeps "".
     if (!n.value.empty() || n.role == Role::kTextRun) {
       accesskit_node_set_value(node, n.value.c_str());
