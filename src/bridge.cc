@@ -96,7 +96,7 @@ void drop_invalid_selections(std::vector<Node>& nodes) {
 accesskit_tree_update* activation_cb(void* user) { return static_cast<Bridge*>(user)->build_full_tree(); }
 accesskit_tree_update* update_cb(void* user) { return static_cast<Bridge*>(user)->build_full_tree(); }
 void action_cb(accesskit_action_request* request, void* user) {
-  static_cast<Bridge*>(user)->on_action(request->target_node, static_cast<int>(request->action));
+  static_cast<Bridge*>(user)->on_action(*request);
   accesskit_action_request_free(request);
 }
 void deactivation_cb(void* /*user*/) {}
@@ -138,6 +138,16 @@ void Bridge::stop() {
 }
 
 void Bridge::begin_frame(float scale, float width, float height) {
+  std::vector<Incoming> incoming;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    incoming.swap(incoming_);
+  }
+  for (Incoming& in : incoming) {
+    if (in.action == ACCESSKIT_ACTION_CLICK) pending_clicks_.insert(in.node);
+    if (in.action == ACCESSKIT_ACTION_FOCUS) pending_focus_.insert(in.node);
+    if (in.action == ACCESSKIT_ACTION_SET_VALUE) pending_values_[in.node] = std::move(in.value);
+  }
   scale_ = scale;
   nodes_.clear();
   parents_.clear();
@@ -283,6 +293,7 @@ accesskit_tree_update* Bridge::build_full_tree() {
     accesskit_node_set_bounds(node, accesskit_rect{n.x0, n.y0, n.x1, n.y1});
     if ((n.actions & kClick) != 0) accesskit_node_add_action(node, ACCESSKIT_ACTION_CLICK);
     if ((n.actions & kFocus) != 0) accesskit_node_add_action(node, ACCESSKIT_ACTION_FOCUS);
+    if ((n.actions & kSetValue) != 0) accesskit_node_add_action(node, ACCESSKIT_ACTION_SET_VALUE);
     if (n.selected >= 0) accesskit_node_set_selected(node, n.selected == 1);
     if (n.expanded >= 0) accesskit_node_set_expanded(node, n.expanded == 1);
     if (n.live == 1) accesskit_node_set_live(node, ACCESSKIT_LIVE_POLITE);
@@ -322,24 +333,35 @@ accesskit_tree_update* Bridge::build_full_tree() {
   return update;
 }
 
-void Bridge::on_action(uint64_t node, int action) const {
+void Bridge::on_action(const accesskit_action_request& request) {
+  Incoming in{request.target_node, static_cast<int>(request.action), {}};
+  if (in.action == ACCESSKIT_ACTION_SET_VALUE) {
+    // Text only: a numeric SetValue (AT-SPI Value) has no taker yet.
+    if (!request.data.has_value || request.data.value.tag != ACCESSKIT_ACTION_DATA_VALUE || request.data.value.value == nullptr)
+      return;
+    in.value = request.data.value.value;
+  } else if (in.action != ACCESSKIT_ACTION_CLICK && in.action != ACCESSKIT_ACTION_FOCUS) {
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    incoming_.push_back(std::move(in));
+  }
   if (event_type_ == 0) return;
   SDL_Event e;
   SDL_zero(e);
   e.type = event_type_;
-  e.user.code = action;
-  e.user.data1 = reinterpret_cast<void*>(static_cast<uintptr_t>(node));
-  SDL_PushEvent(&e);  // handled on the UI thread by handle_event()
+  SDL_PushEvent(&e);  // wakes the UI thread; the next begin_frame() hands the action out
 }
 
-bool Bridge::handle_event(const SDL_Event& e) {
-  if (event_type_ != 0 && e.type == event_type_) {
-    const auto node = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(e.user.data1));
-    if (e.user.code == ACCESSKIT_ACTION_CLICK) pending_clicks_.insert(node);
-    if (e.user.code == ACCESSKIT_ACTION_FOCUS) pending_focus_.insert(node);
-    return true;
-  }
-  return false;
+bool Bridge::handle_event(const SDL_Event& e) { return event_type_ != 0 && e.type == event_type_; }
+
+bool Bridge::take_set_value(uint64_t id, std::string* value) {
+  const auto it = pending_values_.find(id);
+  if (it == pending_values_.end()) return false;
+  *value = std::move(it->second);
+  pending_values_.erase(it);
+  return true;
 }
 
 uint64_t Bridge::id_of(const std::string& key) {

@@ -267,5 +267,51 @@ TEST(A11yBridge, FormRolesInvalidStateAndLanguage) {
     EXPECT_NE(dump.find(want), std::string::npos) << want << "\n" << dump;
 }
 
+// AT actions arrive on AccessKit's thread and reach take_*() from the next begin_frame(), once each. A text SetValue
+// (AT-SPI EditableText.SetTextContents) carries its string, the latest one winning; a numeric SetValue and actions
+// without a taker are dropped. A kSetValue node offers AccessKit's SetValue action.
+TEST(A11yBridge, ActionsAndTextSetValueReachTheNextFrame) {
+  Bridge b;
+  const uint64_t field = Bridge::id_of("to");
+  auto request = [](uint64_t node, accesskit_action action) {
+    accesskit_action_request r{};
+    r.action = action;
+    r.target_node = node;
+    return r;
+  };
+  std::string first = "ann@example.com", second = "bob@example.com";
+  accesskit_action_request set = request(field, ACCESSKIT_ACTION_SET_VALUE);
+  set.data.has_value = true;
+  set.data.value.tag = ACCESSKIT_ACTION_DATA_VALUE;
+  set.data.value.value = first.data();
+  b.on_action(set);
+  set.data.value.value = second.data();
+  b.on_action(set);
+  accesskit_action_request numeric = request(Bridge::id_of("split"), ACCESSKIT_ACTION_SET_VALUE);
+  numeric.data.has_value = true;
+  numeric.data.value.tag = ACCESSKIT_ACTION_DATA_NUMERIC_VALUE;
+  numeric.data.value.numeric_value = 3;
+  b.on_action(numeric);
+  b.on_action(request(field, ACCESSKIT_ACTION_FOCUS));
+  b.on_action(request(field, ACCESSKIT_ACTION_SCROLL_INTO_VIEW));
+  std::string v;
+  EXPECT_FALSE(b.take_set_value(field, &v));  // handed out by the next frame, on the UI thread
+  EXPECT_FALSE(b.take_focus(field));
+  b.begin_frame(1, 800, 600);
+  EXPECT_TRUE(b.take_set_value(field, &v));
+  EXPECT_EQ(v, "bob@example.com");
+  EXPECT_FALSE(b.take_set_value(field, &v));
+  EXPECT_FALSE(b.take_set_value(Bridge::id_of("split"), &v));
+  EXPECT_TRUE(b.take_focus(field));
+  EXPECT_FALSE(b.take_click(field));
+  b.add(field, Role::kTextInput, "to", "To", Bridge::kFocus | Bridge::kSetValue);
+  b.end_frame(true);
+  accesskit_tree_update* update = b.build_full_tree();
+  ASSERT_NE(update, nullptr);
+  const std::string dump = debug_string(update);
+  accesskit_tree_update_free(update);
+  EXPECT_NE(dump.find("actions: [Focus, SetValue], label: \"To\""), std::string::npos) << dump;
+}
+
 }  // namespace
 }  // namespace imgui_accesskit

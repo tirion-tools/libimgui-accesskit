@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <mutex>
 #include <set>
 #include <string>
@@ -18,6 +19,7 @@
 
 struct accesskit_unix_adapter;
 struct accesskit_tree_update;
+struct accesskit_action_request;
 
 namespace imgui_accesskit {
 
@@ -52,10 +54,10 @@ struct Node {
   int has_popup = 0;   // 1 menu, 2 listbox, 3 dialog
   int orientation = 0; // 1 horizontal, 2 vertical
   bool modal = false, disabled = false;
-  // The entered value was refused (AccessKit invalid). AccessKit's AT-SPI adapter (0.21) does not map it to the
-  // invalid-entry state yet, so say why in the description as well.
+  // The entered value was refused (AccessKit invalid; AT-SPI invalid-entry where the adapter maps it, which stock
+  // accesskit_atspi_common 0.21.1 does not). Say why in the description as well.
   bool invalid = false;
-  int actions = 0;     // Bridge::kClick | Bridge::kFocus
+  int actions = 0;     // Bridge::kClick | Bridge::kFocus | Bridge::kSetValue
   double numeric = -1, numeric_min = -1, numeric_max = -1;  // splitters: < 0 = unset
   int64_t row_index = -1, row_count = -1;  // table rows / table size (AccessKit row_index/row_count)
   uint64_t active_descendant = 0;
@@ -71,7 +73,9 @@ struct Node {
 
 class Bridge {
  public:
-  static constexpr int kClick = 1, kFocus = 2;
+  // kSetValue: an editable text field takes its whole contents from an assistive technology (AccessKit SetValue with
+  // a string: AT-SPI EditableText.SetTextContents, UIA ValuePattern.SetValue; screen readers and voice control).
+  static constexpr int kClick = 1, kFocus = 2, kSetValue = 4;
   // Creates the AccessKit Unix adapter (it activates when an AT asks the registry). false if the
   // adapter could not be created; the application keeps running without accessibility then.
   // `window` is reserved for platform adapters that attach to a native window; the Unix adapter
@@ -101,10 +105,14 @@ class Bridge {
   void focus(uint64_t id) { frame_focus_ = id; }
   void end_frame(bool window_focused);
 
-  // SDL event for marshalled actions; handle_event consumes it (returns true).
+  // Actions arrive on AccessKit's thread (on_action) and are handed out on the UI thread from the next begin_frame():
+  // take_*() is true once per action. The SDL event only wakes the UI thread; handle_event consumes it (returns true).
   bool handle_event(const SDL_Event& e);
   bool take_click(uint64_t id) { return pending_clicks_.erase(id) != 0; }
   bool take_focus(uint64_t id) { return pending_focus_.erase(id) != 0; }
+  // The contents an AT set on a field (SetValue with a string; the latest one wins). Apply it before declaring the
+  // node, so the frame publishes the new text. A caller takes values only for the fields it offers kSetValue on.
+  bool take_set_value(uint64_t id, std::string* value);
 
   // Stable id from a widget key (FNV-1a), never 0 or the root id.
   static uint64_t id_of(const std::string& key);
@@ -120,7 +128,7 @@ class Bridge {
   }
 
   accesskit_tree_update* build_full_tree();  // AccessKit callbacks (any thread)
-  void on_action(uint64_t node, int action) const;
+  void on_action(const accesskit_action_request& request);
 
  private:
   SDL_Window* window_ = nullptr;
@@ -133,9 +141,16 @@ class Bridge {
   std::vector<size_t> parents_;
   std::vector<bool> parent_has_rect_;
   std::set<uint64_t> frame_ids_, pending_clicks_, pending_focus_;
+  std::map<uint64_t, std::string> pending_values_;
   uint64_t frame_focus_ = 0;
   int duplicates_ = 0;
-  std::mutex mu_;  // guards published_*, builds_
+  std::mutex mu_;  // guards published_*, builds_, incoming_
+  struct Incoming {
+    uint64_t node;
+    int action;
+    std::string value;
+  };
+  std::vector<Incoming> incoming_;  // actions from AccessKit's thread, drained by begin_frame()
   std::vector<Node> published_;
   uint64_t published_focus_ = 0;
   int builds_ = 0, reported_builds_ = -1;

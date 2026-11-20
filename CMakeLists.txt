@@ -14,7 +14,7 @@
 # Built on its own (tools/gate.sh) it also builds the GoogleTest suites with strict warnings as errors,
 # and with -DIMGUI_ACCESSKIT_FUZZ=ON (clang) the libFuzzer target instead.
 cmake_minimum_required(VERSION 3.25)
-project(imgui_accesskit VERSION 0.1.4 LANGUAGES CXX)
+project(imgui_accesskit VERSION 0.1.5 LANGUAGES CXX)
 
 option(IMGUI_ACCESSKIT_BRIDGE "Build imgui_accesskit::bridge (SDL3, AccessKit C)" ON)
 option(IMGUI_ACCESSKIT_TEXT "Build imgui_accesskit::text (Dear ImGui, SDL3, OpenGL, pangocairo, fontconfig)" ON)

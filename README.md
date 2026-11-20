@@ -54,7 +54,9 @@ their dependencies. Headers are included as `"imgui_accesskit/<name>.h"`.
 
 - **Bridge** (namespace `imgui_accesskit`): `Bridge` with `start(window, title)` / `stop()`, the frame protocol
   `begin_frame(scale, width, height)`, `add`, `push`, `pop`, `top`, `set_rect`, `focus`, `end_frame(window_focused)`;
-  actions with `handle_event(SDL_Event)`, `take_click(id)`, `take_focus(id)`; `id_of(key)` (stable FNV-1a ids),
+  actions (`kClick`, `kFocus`, `kSetValue`) with `take_click(id)`, `take_focus(id)` and `take_set_value(id, &text)`
+  (an AT's SetValue with a string: AT-SPI `EditableText.SetTextContents` on a text input with a text run), handed out
+  from the `begin_frame()` after they arrive, while `handle_event(SDL_Event)` consumes the wake-up event; `id_of(key)` (stable FNV-1a ids),
   `last_frame()`, `duplicate_ids()`, `active()`, `at_active()`. A `Node` carries `Role`, label, description, value, URL,
   bounds, selected/expanded/toggled/checked, live region, level, popup kind, orientation, modal, disabled, actions,
   invalid (a refused entry), numeric value and range, table row index/count, active descendant, `controls` / `described_by` / `labelled_by`, and
@@ -99,7 +101,8 @@ their dependencies. Headers are included as `"imgui_accesskit/<name>.h"`.
 
 - `tests/bridge_test.cc` (GoogleTest, no D-Bus needed): rects in physical pixels, container bounds, duplicate ids,
   stable ids, relation filtering, the AccessKit tree built from a frame (through `accesskit_tree_update_debug`), form
-  roles, the invalid state and node languages, text selections, foreign events.
+  roles, the invalid state and node languages, text selections, foreign events, actions and text SetValue handed out
+  by the next frame.
 - `tests/cef_tree_test.cc`: export of a well-formed tree, generations, malformed and over-limit input, cycle and
   second-parent repair, depth and string limits, location updates, content languages.
 - `tests/run_cache_test.cc` and `tests/line_edit_test.cc` (headless: a recording `TextureOps`, SDL's dummy video driver):
