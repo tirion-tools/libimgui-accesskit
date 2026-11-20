@@ -250,6 +250,25 @@ bool url_ok(const std::string& u) {
   return u.rfind("http://", 0) == 0 || u.rfind("https://", 0) == 0 || u.rfind("mailto:", 0) == 0;
 }
 
+// A BCP 47-shaped language tag (RFC 5646 syntax, not the registry): an alphabetic primary subtag of 2-8 letters, then
+// alphanumeric subtags of 1-8 joined by '-'; at most 35 characters (RFC 5646 §4.4.1).
+bool language_ok(const std::string& tag) {
+  if (tag.empty() || tag.size() > 35) return false;
+  size_t start = 0;
+  for (size_t i = 0; i <= tag.size(); ++i) {
+    if (i < tag.size() && tag[i] != '-') {
+      const char c = tag[i];
+      const bool alpha = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+      if (!alpha && (start == 0 || c < '0' || c > '9')) return false;
+      continue;
+    }
+    const size_t len = i - start;
+    if (len < (start == 0 ? 2u : 1u) || len > 8) return false;
+    start = i + 1;
+  }
+  return true;
+}
+
 }  // namespace
 
 void CefTreeMirror::reset(uint64_t generation) {
@@ -365,6 +384,7 @@ bool CefTreeMirror::apply(uint64_t generation, std::string_view json, bool locat
         if (const Json* s = at->get("value"); s && s->t == Json::T::kStr) n.value = clean(s->s, limits_.max_string);
         if (const Json* s = at->get("url"); s && s->t == Json::T::kStr && s->s.size() <= limits_.max_url && url_ok(s->s))
           n.url = clean(s->s, limits_.max_url);
+        if (const Json* s = at->get("language"); s && s->t == Json::T::kStr && language_ok(s->s)) n.language = s->s;
         int32_t level = 0;
         if (get_i32(at->get("hierarchicalLevel"), &level)) n.level = std::max(0, std::min(level, 9));
         get_f(at->get("scrollX"), &n.scroll_x);
@@ -433,6 +453,7 @@ std::vector<CefExport> CefTreeMirror::export_tree() const {
     if (text + e.name.size() > limits_.max_total_text) e.name.clear();
     text += e.name.size();
     e.url = n.url;
+    e.language = n.language;
     e.level = n.level;
     absolute(n, &e.x, &e.y);
     e.w = n.w;

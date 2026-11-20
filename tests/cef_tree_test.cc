@@ -104,4 +104,22 @@ TEST(CefTree, LocationUpdate) {
   EXPECT_FLOAT_EQ(m.export_tree()[3].x, 50.0f);
 }
 
+TEST(CefTree, LanguageOfTheContent) {
+  CefTreeMirror m;
+  m.reset(3);
+  ASSERT_TRUE(m.apply(3, R"J({"updates":[{"root_id":1,"nodes":[
+    {"id":1,"role":"rootWebArea","child_ids":[2,3,4,5],"attributes":{"language":"de-CH"}},
+    {"id":2,"role":"paragraph","attributes":{"language":"fr"}},
+    {"id":3,"role":"paragraph","attributes":{"language":"en\"><x"}},
+    {"id":4,"role":"paragraph","attributes":{"language":"1a"}},
+    {"id":5,"role":"paragraph","attributes":{"language":"sr-Latn-RS-x-abcdefghi"}}]}]})J", false)) << m.last_reject();
+  const auto out = m.export_tree();
+  ASSERT_EQ(out.size(), 5u);
+  EXPECT_EQ(out[0].language, "de-CH");
+  EXPECT_EQ(out[1].language, "fr");
+  EXPECT_TRUE(out[2].language.empty()) << "punctuation refused";
+  EXPECT_TRUE(out[3].language.empty()) << "primary subtag must be letters";
+  EXPECT_TRUE(out[4].language.empty()) << "subtag longer than 8";
+}
+
 }  // namespace

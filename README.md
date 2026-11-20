@@ -57,7 +57,7 @@ their dependencies. Headers are included as `"imgui_accesskit/<name>.h"`.
   actions with `handle_event(SDL_Event)`, `take_click(id)`, `take_focus(id)`; `id_of(key)` (stable FNV-1a ids),
   `last_frame()`, `duplicate_ids()`, `active()`, `at_active()`. A `Node` carries `Role`, label, description, value, URL,
   bounds, selected/expanded/toggled/checked, live region, level, popup kind, orientation, modal, disabled, actions,
-  numeric value and range, table row index/count, active descendant, `controls` / `described_by` / `labelled_by`, and
+  invalid (a refused entry), numeric value and range, table row index/count, active descendant, `controls` / `described_by` / `labelled_by`, and
   text runs (`character_lengths`, `TextPosition` selection). Rules enforced in `end_frame()`: relations to nodes missing
   from the frame are dropped, text selections must name `kTextRun` descendants, and a repeated id gets a derived id
   (counted in `duplicate_ids()`) so AccessKit never sees a malformed update. Levels are one-based.
@@ -69,16 +69,16 @@ their dependencies. Headers are included as `"imgui_accesskit/<name>.h"`.
   OpenGL (`upload_alpha_texture`: `GL_R8` with an alpha swizzle; `upload_rgba_texture`; `delete_texture`) and needs a
   current GL context. Another renderer, or a headless test, passes its own.
 - **CEF mirror** (namespace `imgui_accesskit::cef`): `CefTreeMirror` (`reset(generation)`, `apply(generation, json,
-  location_only)`, `valid`, `focus`, `last_reject`, `export_tree`), `CefTreeLimits`, `CefKind`, `CefExport`. Mapping
-  the exported nodes onto bridge nodes is the caller's choice (the bridge has the roles: link, image, caption, list,
-  table, heading, paragraph).
+  location_only)`, `valid`, `focus`, `last_reject`, `export_tree`), `CefTreeLimits`, `CefKind`, `CefExport` (with the
+  content's `language`, the HTML `lang`, for `Node::language`). Mapping the exported nodes onto bridge nodes is the
+  caller's choice (the bridge has the roles: link, image, caption, list, table, heading, paragraph).
 
 ## Security model
 
 - **CEF accessibility JSON is hostile input** (renderer-controlled). `CefTreeMirror` bounds it with `CefTreeLimits`:
   1.5 MiB of JSON, nesting 64, 64 updates, 20,000 nodes, 4,096 children per node, depth 128, 16 KiB strings cut at a
   UTF-8 boundary with invalid UTF-8 replaced, 2 MiB of exported text, URLs only `http`, `https` and `mailto` up to
-  2,048 bytes, finite and bounded coordinates. After every update a reachability pass rebuilds a tree: unreachable nodes
+  2,048 bytes, languages only BCP 47-shaped tags up to 35 characters, finite and bounded coordinates. After every update a reachability pass rebuilds a tree: unreachable nodes
   are dropped, second parents and cycles ignored, depth cut. A rejected update invalidates the mirror until the next
   `reset()`. It is fuzzed (`fuzz/fuzz_cef_tree.cc`).
 - **AccessKit's consumer panics on malformed trees**; the bridge filters dangling relations and invalid text selections
@@ -98,10 +98,10 @@ their dependencies. Headers are included as `"imgui_accesskit/<name>.h"`.
 ## Tests
 
 - `tests/bridge_test.cc` (GoogleTest, no D-Bus needed): rects in physical pixels, container bounds, duplicate ids,
-  stable ids, relation filtering, the AccessKit tree built from a frame (through `accesskit_tree_update_debug`), text
-  selections, foreign events.
+  stable ids, relation filtering, the AccessKit tree built from a frame (through `accesskit_tree_update_debug`), form
+  roles, the invalid state and node languages, text selections, foreign events.
 - `tests/cef_tree_test.cc`: export of a well-formed tree, generations, malformed and over-limit input, cycle and
-  second-parent repair, depth and string limits, location updates.
+  second-parent repair, depth and string limits, location updates, content languages.
 - `tests/run_cache_test.cc` and `tests/line_edit_test.cc` (headless: a recording `TextureOps`, SDL's dummy video driver):
   rasterising and caching, measuring and metrics, the cold budget, LRU eviction, wrapping, ellipsis and fit, base
   direction, colour emoji layers, `index_at`, `range_boxes` (line breaks, bidi), `word_at`; grapheme, word, visual

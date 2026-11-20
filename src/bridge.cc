@@ -54,6 +54,11 @@ accesskit_role to_accesskit(Role role) {
     case Role::kLink: return ACCESSKIT_ROLE_LINK;
     case Role::kImage: return ACCESSKIT_ROLE_IMAGE;
     case Role::kCaption: return ACCESSKIT_ROLE_CAPTION;
+    case Role::kCheckBox: return ACCESSKIT_ROLE_CHECK_BOX;
+    case Role::kRadioButton: return ACCESSKIT_ROLE_RADIO_BUTTON;
+    case Role::kComboBox: return ACCESSKIT_ROLE_COMBO_BOX;
+    case Role::kComplementary: return ACCESSKIT_ROLE_COMPLEMENTARY;
+    case Role::kNote: return ACCESSKIT_ROLE_NOTE;
   }
   return ACCESSKIT_ROLE_UNKNOWN;
 }
@@ -285,6 +290,7 @@ accesskit_tree_update* Bridge::build_full_tree() {
     if (n.live != 0) accesskit_node_set_live_atomic(node);
     if (n.modal) accesskit_node_set_modal(node);
     if (n.disabled) accesskit_node_set_disabled(node);
+    if (n.invalid) accesskit_node_set_invalid(node, ACCESSKIT_INVALID_TRUE);
     // Node levels are one-based like ARIA and AT-SPI; AccessKit's level is zero-based.
     if (n.level > 0) accesskit_node_set_level(node, static_cast<size_t>(n.level - 1));
     if (n.has_popup == 1) accesskit_node_set_has_popup(node, ACCESSKIT_HAS_POPUP_MENU);

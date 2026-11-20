@@ -4,10 +4,10 @@
 // Input: CefWriteJSON of OnAccessibilityTreeChange / OnAccessibilityLocationChange values, forwarded
 // unchanged from the renderer process. It is renderer-controlled: the mirror is the trust boundary.
 // Default limits (CefTreeLimits): 1.5 MiB of JSON, 20,000 nodes, 4,096 children per node, depth 128,
-// 16 KiB strings (cut at a UTF-8 boundary), http/https/mailto URLs only, 2 MiB of exported text,
-// finite coordinates; JSON nesting 64. After every update a reachability pass from the root rebuilds a
-// proper tree (unreachable nodes dropped, second parents ignored, depth cut), so AccessKit only ever
-// sees a well-formed tree. Other generations are ignored; a rejected update invalidates the mirror
+// 16 KiB strings (cut at a UTF-8 boundary), http/https/mailto URLs only, BCP 47-shaped languages only,
+// 2 MiB of exported text, finite coordinates; JSON nesting 64. After every update a reachability pass
+// from the root rebuilds a proper tree (unreachable nodes dropped, second parents ignored, depth cut), so
+// AccessKit only ever sees a well-formed tree. Other generations are ignored; a rejected update invalidates the mirror
 // until the next generation (the caller then exposes a placeholder).
 #pragma once
 
@@ -40,6 +40,7 @@ struct CefNode {
   int32_t id = 0;
   CefKind kind = CefKind::kGeneric;
   std::string name, value, url;
+  std::string language;  // the `language` attribute (HTML lang), a BCP 47-shaped tag; empty = inherited
   std::vector<int32_t> children;
   int32_t offset_container = 0;
   float x = 0, y = 0, w = 0, h = 0;  // relative to offset_container (CSS px)
@@ -53,7 +54,7 @@ struct CefExport {
   int32_t id = 0;
   int depth = 0;  // 0 = root
   CefKind kind = CefKind::kGeneric;
-  std::string name, url;
+  std::string name, url, language;
   int level = 0;
   float x = 0, y = 0, w = 0, h = 0;
   std::vector<int32_t> children;  // exported children only

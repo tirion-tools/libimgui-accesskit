@@ -245,5 +245,27 @@ TEST(A11yBridge, IgnoresForeignEvents) {
   EXPECT_FALSE(b.take_click(1));
 }
 
+TEST(A11yBridge, FormRolesInvalidStateAndLanguage) {
+  Bridge b;
+  b.begin_frame(1, 800, 600);
+  b.add(Bridge::id_of("cb"), Role::kCheckBox, "cb", "Remember me").checked = 1;
+  b.add(Bridge::id_of("rb"), Role::kRadioButton, "rb", "Plain text").checked = 0;
+  b.add(Bridge::id_of("combo"), Role::kComboBox, "combo", "From").has_popup = 2;
+  b.add(Bridge::id_of("side"), Role::kComplementary, "side", "Details");
+  b.add(Bridge::id_of("note"), Role::kNote, "note", "Replies go to bob");
+  Node& to = b.add(Bridge::id_of("to"), Role::kTextInput, "to", "To");
+  to.invalid = true;
+  to.description = "Not an email address";
+  b.add(Bridge::id_of("p"), Role::kParagraph, "p", "Bonjour").language = "fr";
+  b.end_frame(true);
+  accesskit_tree_update* update = b.build_full_tree();
+  ASSERT_NE(update, nullptr);
+  const std::string dump = debug_string(update);
+  accesskit_tree_update_free(update);
+  for (const char* want : {"role: CheckBox", "role: RadioButton", "role: ComboBox", "role: Complementary", "role: Note",
+                           "invalid: True", "language: \"fr\""})
+    EXPECT_NE(dump.find(want), std::string::npos) << want << "\n" << dump;
+}
+
 }  // namespace
 }  // namespace imgui_accesskit

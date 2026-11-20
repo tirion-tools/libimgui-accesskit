@@ -27,6 +27,8 @@ enum class Role : uint8_t {
   kCell, kColumnHeader, kHeading, kDocument, kParagraph, kTextInput, kSearchInput, kPasswordInput, kStatus, kAlert, kAlertDialog, kMenu,
   kMenuItem, kMenuItemRadio, kMenuItemCheckBox, kDialog, kSplitter, kList, kListItem, kScrollView, kTextRun, kLink,
   kImage, kCaption,  // mirrored CEF content (cef_tree.h)
+  kCheckBox, kRadioButton, kComboBox,  // `checked` carries a check box's or radio button's state
+  kComplementary, kNote,
 };
 
 // A caret position in AccessKit's text model: a character index (not bytes) within a kTextRun node.
@@ -50,6 +52,7 @@ struct Node {
   int has_popup = 0;   // 1 menu, 2 listbox, 3 dialog
   int orientation = 0; // 1 horizontal, 2 vertical
   bool modal = false, disabled = false;
+  bool invalid = false;  // the entered value was refused (AT-SPI state invalid-entry; say why in the description)
   int actions = 0;     // Bridge::kClick | Bridge::kFocus
   double numeric = -1, numeric_min = -1, numeric_max = -1;  // splitters: < 0 = unset
   int64_t row_index = -1, row_count = -1;  // table rows / table size (AccessKit row_index/row_count)
