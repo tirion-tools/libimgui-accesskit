@@ -52,7 +52,9 @@ struct Node {
   int has_popup = 0;   // 1 menu, 2 listbox, 3 dialog
   int orientation = 0; // 1 horizontal, 2 vertical
   bool modal = false, disabled = false;
-  bool invalid = false;  // the entered value was refused (AT-SPI state invalid-entry; say why in the description)
+  // The entered value was refused (AccessKit invalid). AccessKit's AT-SPI adapter (0.21) does not map it to the
+  // invalid-entry state yet, so say why in the description as well.
+  bool invalid = false;
   int actions = 0;     // Bridge::kClick | Bridge::kFocus
   double numeric = -1, numeric_min = -1, numeric_max = -1;  // splitters: < 0 = unset
   int64_t row_index = -1, row_count = -1;  // table rows / table size (AccessKit row_index/row_count)
