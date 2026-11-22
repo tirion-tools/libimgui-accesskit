@@ -358,9 +358,15 @@ void LineEdit::draw(const char* id, float width, float height, const LineEditCol
   if (!ImGui::ItemAdd(bb, gid)) return;
   if (ImGui::ItemHoverable(bb, gid, 0)) ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput);
   if (focused_) {  // keep ImGui navigation from consuming arrows, Home and End while editing
-    if (g.ActiveId != gid) ImGui::SetActiveID(gid, window);
+    // An item the pointer presses (allowed by the overlap below) keeps the active id until it is released.
+    if (g.ActiveId == 0) ImGui::SetActiveID(gid, window);
     ImGui::SetFocusID(gid, window);
-    ImGui::SetActiveIdUsingAllKeyboardKeys();
+    if (g.ActiveId == gid) {
+      ImGui::SetActiveIdUsingAllKeyboardKeys();
+      // The active id is for the keys only. Like ImGui's InputText, the field lets the pointer hover and click other
+      // items (IsWindowHovered, ItemHoverable), except during a drag that began in the field and selects its text.
+      g.ActiveIdAllowOverlap = !dragging_;
+    }
   } else if (g.ActiveId == gid) {
     ImGui::ClearActiveID();
   }

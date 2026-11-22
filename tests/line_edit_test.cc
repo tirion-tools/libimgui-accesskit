@@ -230,5 +230,67 @@ TEST_F(LineEditTest, UnfocusedFieldIgnoresKeysAndText) {
   EXPECT_EQ(edit.cursor(), 3);
 }
 
+// A focused field holds ImGui's active id for the keys only: the pointer still hovers the window and clicks its other
+// items while the host keeps the field focused (a dialog whose keyboard focus stays on a field), except during a drag
+// that began in the field.
+TEST_F(LineEditTest, FocusedFieldLeavesThePointerToOtherItems) {
+  ImGuiContext* ctx = ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.DisplaySize = ImVec2(300, 200);
+  io.IniFilename = nullptr;
+  io.ConfigInputTrickleEventQueue = false;
+  io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;  // the atlas builds itself in NewFrame
+  bool window_hovered = false;
+  bool clicked = false;
+  const auto frame = [&](ImVec2 pos, int down) {
+    io.AddMousePosEvent(pos.x, pos.y);
+    if (down >= 0) io.AddMouseButtonEvent(0, down == 1);
+    ImGui::NewFrame();
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(io.DisplaySize);
+    ImGui::Begin("dialog", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+    edit.set_focused(true);
+    ImGui::SetCursorScreenPos(ImVec2(10, 10));
+    edit.draw("field", 200, 24, LineEditColors{});
+    window_hovered = ImGui::IsWindowHovered();
+    ImGui::SetCursorScreenPos(ImVec2(10, 100));
+    clicked = ImGui::Button("Continue", ImVec2(100, 30));
+    ImGui::End();
+    ImGui::EndFrame();
+  };
+  const auto mouse = [&](SDL_EventType type, float x, float y) {
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = type;
+    e.button.button = SDL_BUTTON_LEFT;
+    e.button.clicks = 1;
+    e.button.x = x;
+    e.button.y = y;
+    edit.handle_event(e);
+  };
+  const ImVec2 button(50, 115);
+  frame(button, -1);
+  frame(button, -1);
+  EXPECT_TRUE(window_hovered);
+  frame(button, 1);
+  EXPECT_FALSE(clicked);
+  frame(button, 0);
+  EXPECT_TRUE(clicked) << "a press and release on the button while the field keeps focus";
+  frame(button, -1);
+  EXPECT_TRUE(edit.focused());
+  EXPECT_TRUE(window_hovered);
+
+  mouse(SDL_EVENT_MOUSE_BUTTON_DOWN, 20, 20);  // a selection drag from the field over the button
+  frame(ImVec2(20, 20), 1);
+  frame(button, -1);
+  EXPECT_FALSE(window_hovered);
+  mouse(SDL_EVENT_MOUSE_BUTTON_UP, button.x, button.y);
+  frame(button, 0);
+  EXPECT_FALSE(clicked);
+  frame(button, -1);
+  EXPECT_TRUE(window_hovered);
+  ImGui::DestroyContext(ctx);
+}
+
 }  // namespace
 }  // namespace imgui_accesskit::text
