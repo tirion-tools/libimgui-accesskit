@@ -99,7 +99,9 @@ void action_cb(accesskit_action_request* request, void* user) {
   static_cast<Bridge*>(user)->on_action(*request);
   accesskit_action_request_free(request);
 }
+#ifndef _WIN32
 void deactivation_cb(void* /*user*/) {}
+#endif
 
 }  // namespace
 
@@ -110,6 +112,14 @@ std::string Bridge::locale_language() {
     if (v != nullptr && *v != '\0') break;
   }
   std::string s = v != nullptr ? v : "";
+#ifdef _WIN32
+  // Windows sets none of them: the user's default locale ("de-DE"), ASCII by definition.
+  if (s.empty()) {
+    wchar_t name[LOCALE_NAME_MAX_LENGTH];
+    if (GetUserDefaultLocaleName(name, LOCALE_NAME_MAX_LENGTH) > 0)
+      for (const wchar_t* p = name; *p != L'\0'; ++p) s += *p < 0x80 ? static_cast<char>(*p) : '?';
+  }
+#endif
   s = s.substr(0, s.find_first_of(".@"));  // drop the codeset and the modifier
   if (s.empty() || s == "C" || s == "POSIX") return "en";
   std::string out;
@@ -127,13 +137,28 @@ bool Bridge::start(SDL_Window* window, const std::string& title) {
   title_ = title;
   if (event_type_ == 0) event_type_ = SDL_RegisterEvents(1);  // 0 = none left: actions are dropped
   // Handlers run on AccessKit's threads; they only touch published_* under mu_.
+#ifdef _WIN32
+  if (adapter_ == nullptr && window != nullptr) {
+    // AccessKit panics (aborts the process) when the window was ever shown: refuse that case here.
+    if ((SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN) == 0) return false;
+    const auto hwnd = static_cast<HWND>(
+        SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+    if (hwnd != nullptr)
+      adapter_ = accesskit_windows_subclassing_adapter_new(hwnd, activation_cb, this, action_cb, this);
+  }
+#else
   if (adapter_ == nullptr)
     adapter_ = accesskit_unix_adapter_new(activation_cb, this, action_cb, this, deactivation_cb, this);
+#endif
   return adapter_ != nullptr;
 }
 
 void Bridge::stop() {
+#ifdef _WIN32
+  if (adapter_ != nullptr) accesskit_windows_subclassing_adapter_free(adapter_);
+#else
   if (adapter_ != nullptr) accesskit_unix_adapter_free(adapter_);
+#endif
   adapter_ = nullptr;
 }
 
@@ -234,6 +259,9 @@ void Bridge::end_frame(bool window_focused) {
   }
   drop_invalid_selections(nodes_);
   last_frame_ = nodes_;
+#ifdef _WIN32
+  (void)window_focused;  // the subclassing adapter follows WM_SETFOCUS/WM_KILLFOCUS of the window itself
+#else
   // AccessKit reports FOCUSED only while it believes the window is focused. SDL's focus event can
   // arrive before an assistive technology activates the adapter, so re-sync after every new
   // activation and on any change of the window's input focus.
@@ -249,6 +277,7 @@ void Bridge::end_frame(bool window_focused) {
       reported_builds_ = builds;
     }
   }
+#endif
   const uint64_t focus = frame_focus_ != 0 && frame_ids_.contains(frame_focus_) ? frame_focus_ : kRootId;
   bool changed = false;
   {
@@ -259,7 +288,16 @@ void Bridge::end_frame(bool window_focused) {
       published_focus_ = focus;
     }
   }
+#ifdef _WIN32
+  // The queued UIA events are raised outside mu_: a UIA client may call back into build_full_tree().
+  if (changed && adapter_ != nullptr) {
+    accesskit_windows_queued_events* events =
+        accesskit_windows_subclassing_adapter_update_if_active(adapter_, update_cb, this);
+    if (events != nullptr) accesskit_windows_queued_events_raise(events);
+  }
+#else
   if (changed && adapter_ != nullptr) accesskit_unix_adapter_update_if_active(adapter_, update_cb, this);
+#endif
 }
 
 accesskit_tree_update* Bridge::build_full_tree() {

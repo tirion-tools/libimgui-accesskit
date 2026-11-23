@@ -1,5 +1,5 @@
-// Dear ImGui → AccessKit (AT-SPI) bridge. The UI layer declares nodes every frame with explicit roles;
-// containers nest with push/pop. end_frame() publishes the tree only when it changed. AccessKit
+// Dear ImGui → AccessKit bridge (AT-SPI on Linux, UI Automation on Windows). The UI layer declares nodes every frame
+// with explicit roles; containers nest with push/pop. end_frame() publishes the tree only when it changed. AccessKit
 // actions arrive on AccessKit's thread and are marshalled to the UI thread as an SDL user event.
 // Rules: levels are one-based here and passed to AccessKit as level − 1;
 // relation targets must exist in the same frame; node ids are unique per frame (a repeat gets a
@@ -17,7 +17,11 @@
 
 #include <SDL3/SDL.h>
 
+#ifdef _WIN32
+struct accesskit_windows_subclassing_adapter;
+#else
 struct accesskit_unix_adapter;
+#endif
 struct accesskit_tree_update;
 struct accesskit_action_request;
 
@@ -76,10 +80,12 @@ class Bridge {
   // kSetValue: an editable text field takes its whole contents from an assistive technology (AccessKit SetValue with
   // a string: AT-SPI EditableText.SetTextContents, UIA ValuePattern.SetValue; screen readers and voice control).
   static constexpr int kClick = 1, kFocus = 2, kSetValue = 4;
-  // Creates the AccessKit Unix adapter (it activates when an AT asks the registry). false if the
-  // adapter could not be created; the application keeps running without accessibility then.
-  // `window` is reserved for platform adapters that attach to a native window; the Unix adapter
-  // does not use it. `title` labels the root node.
+  // Creates the AccessKit platform adapter. Linux: the Unix adapter (it activates when an AT asks the registry);
+  // `window` is not used. Windows: the subclassing adapter on the window's HWND (it answers WM_GETOBJECT and tracks
+  // the window's focus itself), which AccessKit accepts only while the window is hidden: call start() after
+  // SDL_CreateWindow(SDL_WINDOW_HIDDEN) and before showing it (a shown window is refused, start() returns false).
+  // false if the adapter could not be created; the application keeps running without accessibility then.
+  // `title` labels the root node.
   bool start(SDL_Window* window, const std::string& title);
   void stop();
   ~Bridge() { stop(); }
@@ -134,7 +140,11 @@ class Bridge {
   SDL_Window* window_ = nullptr;
   std::string title_;
   std::string language_ = locale_language();
+#ifdef _WIN32
+  accesskit_windows_subclassing_adapter* adapter_ = nullptr;
+#else
   accesskit_unix_adapter* adapter_ = nullptr;
+#endif
   Uint32 event_type_ = 0;
   float scale_ = 1;
   std::vector<Node> nodes_, last_frame_;

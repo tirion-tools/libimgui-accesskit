@@ -1,15 +1,17 @@
-# libimgui-accesskit: accessibility and text for Dear ImGui applications on Linux (C++20).
+# libimgui-accesskit: accessibility and text for Dear ImGui applications on Linux and Windows (C++20).
 #
-#   imgui_accesskit::bridge   AccessKit (AT-SPI) bridge                   SDL3, AccessKit C
+#   imgui_accesskit::bridge   AccessKit bridge (AT-SPI / UI Automation)   SDL3, AccessKit C
 #   imgui_accesskit::text     Pango/cairo text runs, single-line editor   Dear ImGui, SDL3, OpenGL, pangocairo, fontconfig
+#                                                                         (Linux; Windows: Pango's win32 font map)
 #   imgui_accesskit::cef      CEF accessibility tree mirror               standard library only
 #
 # Consumers add_subdirectory() this directory and switch modules off with IMGUI_ACCESSKIT_{BRIDGE,TEXT,CEF}
 # (a consumer of only the cef module needs none of the other dependencies). The consumer's targets are
 # used when they exist: imgui, SDL3::SDL3-static or SDL3::SDL3, accesskit, PkgConfig::PANGOCAIRO. Otherwise
 # SDL3 and AccessKit come from find_package (SDL3's CMake package, an accesskit-c release with
-# find_package(ACCESSKIT)), pangocairo and fontconfig from pkg-config, and Dear ImGui's core is compiled
-# from the sources in IMGUI_ACCESSKIT_IMGUI_DIR.
+# find_package(ACCESSKIT)), pangocairo (and on Linux fontconfig) from pkg-config, and Dear ImGui's core is compiled
+# from the sources in IMGUI_ACCESSKIT_IMGUI_DIR. On Windows the bridge uses AccessKit's subclassing adapter
+# (accesskit_windows) on the SDL window's HWND.
 #
 # Built on its own (tools/gate.sh) it also builds the GoogleTest suites with strict warnings as errors,
 # and with -DIMGUI_ACCESSKIT_FUZZ=ON (clang) the libFuzzer target instead.
@@ -20,7 +22,11 @@ option(IMGUI_ACCESSKIT_BRIDGE "Build imgui_accesskit::bridge (SDL3, AccessKit C)
 option(IMGUI_ACCESSKIT_TEXT "Build imgui_accesskit::text (Dear ImGui, SDL3, OpenGL, pangocairo, fontconfig)" ON)
 option(IMGUI_ACCESSKIT_CEF "Build imgui_accesskit::cef (standard library only)" ON)
 
-set(_imgui_accesskit_strict -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion -Werror)
+if(MSVC)
+  set(_imgui_accesskit_strict /W4 /WX /wd4996 /permissive- /utf-8)  # C4996: the CRT's *_s suggestions (getenv)
+else()
+  set(_imgui_accesskit_strict -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion -Werror)
+endif()
 
 function(_imgui_accesskit_library name alias)
   add_library(${name} STATIC ${ARGN})
@@ -49,7 +55,11 @@ endif()
 if(IMGUI_ACCESSKIT_TEXT)
   if(NOT TARGET PkgConfig::PANGOCAIRO)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(PANGOCAIRO REQUIRED IMPORTED_TARGET GLOBAL pangocairo fontconfig)
+    if(WIN32)  # Pango's default font map on Windows is the win32 one: no fontconfig
+      pkg_check_modules(PANGOCAIRO REQUIRED IMPORTED_TARGET GLOBAL pangocairo)
+    else()
+      pkg_check_modules(PANGOCAIRO REQUIRED IMPORTED_TARGET GLOBAL pangocairo fontconfig)
+    endif()
   endif()
   find_package(OpenGL REQUIRED GLOBAL)
   if(NOT TARGET imgui)
@@ -74,6 +84,9 @@ endif()
 if(IMGUI_ACCESSKIT_BRIDGE)
   _imgui_accesskit_library(imgui_accesskit_bridge bridge src/bridge.cc)
   target_link_libraries(imgui_accesskit_bridge PUBLIC ${_imgui_accesskit_sdl} PRIVATE accesskit)
+  if(WIN32)  # accesskit.h includes <windows.h>; the bridge uses std::min/std::max
+    target_compile_definitions(imgui_accesskit_bridge PRIVATE NOMINMAX)
+  endif()
 endif()
 if(IMGUI_ACCESSKIT_TEXT)
   _imgui_accesskit_library(imgui_accesskit_text text src/run_cache.cc src/line_edit.cc)

@@ -1,6 +1,7 @@
 # libimgui-accesskit
 
-Accessibility and international text for [Dear ImGui](https://github.com/ocornut/imgui) applications on Linux (C++20).
+Accessibility and international text for [Dear ImGui](https://github.com/ocornut/imgui) applications on Linux and
+Windows (C++20).
 Three independent modules:
 
 - **`imgui_accesskit::bridge`** (`bridge.h`): an immediate-mode bridge to [AccessKit](https://accesskit.dev) and through
@@ -19,13 +20,15 @@ Three independent modules:
 
 ## Builds on
 
-- **[AccessKit C](https://github.com/AccessKit/accesskit-c)** (MIT or Apache-2.0): the accessibility tree model and the
-  Unix (AT-SPI) adapter. The gate uses the upstream 0.23.2 release.
+- **[AccessKit C](https://github.com/AccessKit/accesskit-c)** (MIT or Apache-2.0): the accessibility tree model, the
+  Unix (AT-SPI) adapter and on Windows the subclassing (UI Automation) adapter. The gate uses the upstream 0.23.2
+  release.
 - **[SDL3](https://libsdl.org)** (zlib): events, IME text input and the clipboard. The gate uses 3.4.2.
 - **[Dear ImGui](https://github.com/ocornut/imgui)** (MIT): drawing and item state. The gate uses v1.93.0-docking.
   `LineEdit` uses `imgui_internal.h` (`ItemAdd`, `SetActiveID`, `PlatformImeData`), which can change between ImGui
   releases.
-- **Pango, cairo, fontconfig** (LGPL-2.1+, LGPL-2.1/MPL-1.1, MIT-style), linked dynamically.
+- **Pango, cairo, fontconfig** (LGPL-2.1+, LGPL-2.1/MPL-1.1, MIT-style), linked dynamically. On Windows Pango uses its
+  win32 font map, so fontconfig is not required there.
 
 Fixes to those projects go upstream, not into this repository.
 
@@ -37,7 +40,7 @@ target_link_libraries(app PRIVATE imgui_accesskit::bridge imgui_accesskit::text 
 ```
 
 The library uses the consumer's targets when they exist: `imgui`, `SDL3::SDL3-static` (else `SDL3::SDL3`),
-`accesskit` and `PkgConfig::PANGOCAIRO` (pkg-config `pangocairo fontconfig`). Otherwise it calls
+`accesskit` and `PkgConfig::PANGOCAIRO` (pkg-config `pangocairo fontconfig`; `pangocairo` on Windows). Otherwise it calls
 `find_package(SDL3 CONFIG)`, `find_package(ACCESSKIT)` (an unpacked accesskit-c release on `CMAKE_PREFIX_PATH`) and
 pkg-config, and compiles Dear ImGui's core from `IMGUI_ACCESSKIT_IMGUI_DIR`. `text` also links `OpenGL::GL`.
 
@@ -88,8 +91,10 @@ their dependencies. Headers are included as `"imgui_accesskit/<name>.h"`.
 
 ## Known limits
 
-- Linux only: the bridge creates the AccessKit Unix (AT-SPI) adapter. `Bridge::start()` takes the SDL window for
-  adapters that attach to a native window (Windows, macOS); the Unix adapter does not use it.
+- Linux and Windows. Linux: the AccessKit Unix (AT-SPI) adapter; `Bridge::start()` does not use the window. Windows:
+  the subclassing (UI Automation) adapter on the window's HWND, which AccessKit accepts only before the window is
+  first shown: create it with `SDL_WINDOW_HIDDEN`, call `start()`, then show it (`start()` refuses a shown window).
+  macOS is not supported.
 - `at_active()` turns true when an assistive technology first asks for the tree and never turns false again: the
   adapter's deactivation callback is a no-op.
 - Actions travel as an SDL user event (one `SDL_RegisterEvents` per `Bridge`); only click and focus are handled.
